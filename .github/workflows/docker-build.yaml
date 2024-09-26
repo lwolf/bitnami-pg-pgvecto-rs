@@ -28,6 +28,7 @@ jobs:
       - name: Build and Push Versioned Docker Image
         id: build-and-push
         uses: docker/build-push-action@v6
+        if: ${{ github.ref != 'refs/heads/main' }}
         with:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
