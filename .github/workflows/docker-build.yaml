@@ -31,5 +31,6 @@ jobs:
         if: ${{ github.ref != 'refs/heads/main' }}
         with:
           push: true
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
