@@ -9,5 +9,7 @@ USER root
 RUN apt-get install -y /tmp/vectors.deb && rm -f /tmp/vectors.deb && \
      mv /usr/lib/postgresql/*/lib/vectors.so /opt/bitnami/postgresql/lib/ && \
      mv usr/share/postgresql/*/extension/vectors* opt/bitnami/postgresql/share/extension/
-USER 1001
 ENV POSTGRESQL_EXTRA_FLAGS="-c shared_preload_libraries=vectors.so"
+USER 1001
+ENTRYPOINT [ "/opt/bitnami/scripts/postgresql/entrypoint.sh" ]
+CMD [ "/opt/bitnami/scripts/postgresql/run.sh" ]
