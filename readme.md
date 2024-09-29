@@ -1,36 +1,47 @@
 # Bitnami Postgres images w/ pgvecto.rs
 
-I need this for the immich helm chart - I doubt I will continue to use this long term, but it works for now. Use at your own risk.
-
-## Building yourself
-
-I am going to use github actions to publish images on ghcr, and you are welcome to use them, but you are probably better off building your own version to replace the specific image you would like. Use common sense with your image tags (aka, use pg14 on both images). An example:
-
-```bash
-$ docker built --build-arg="PGVECTORS_TAG=pg14-v0.1.13-amd64" --build-arg="BITNAMI_TAG=14.5.0-debian-11-r6" -t bitnami-postgres-pgvecto-rs .
-```
+I'm using the [Bitnami postgres helm](https://github.com/bitnami/charts/blob/main/bitnami/postgresql/README.md) chart as my backing store for immich (not using the immich helm chart).  Immich requires [pgvecto.rs](https://pgvecto.rs/) installed, which isn't part of the bitnami image.  This image and the subseqent configs (listed below) are how I use this.
 
 ## Usage
 
-This is a drop in replacement for bitnami postgres debian container. Just swap the image with mine (or preferably, one that you built instead)
+This is a drop in replacement for bitnami postgres debian container for the bitnami postgres helm chart. Just swap the image with mine and if you're using this for immich, you'll need to following configs.
 
 In your `values.yaml`:
 
 ```yaml
-postgressql:
-  image:
-    registry: ghcr.io
-    repository: soarinferret/bitnami-postgres-pgvecto-rs
-    tag: pg14.5-v0.1.13
-```
-
-Or `docker-compose.yml`:
-
-```yaml
-version: '3'
-
-services:
-  db:
-    #image: bitnami/postgresql:14.5.0-debian-11-r6
-    image: soarinferret/bitnami-postgres-pgvecto-rs:pg14.5-v0.1.13
+image:
+  registry: ghcr.io
+  repository: aaronspruit/bitnami-pg-pgvecto-rs
+  tag: pg16.4.0-v0.2.1-v2
+primary:
+  # this adds the libraries
+  extendedConfiguration: |-
+    shared_preload_libraries = 'vectors.so'
+  initdb:
+    user: postgres
+    scripts: 
+      # this script installs the extension
+      # and then updates the database that was already created
+      # https://github.com/immich-app/immich/discussions/7252#discussioncomment-8534336
+      # https://docs.pgvecto.rs/getting-started/installation.html#from-debian-package 
+      00-create-extensions.sql: |
+        \getenv dbname POSTGRES_DATABASE
+        \getenv dbuser POSTGRES_USER
+        \c :dbname
+        ALTER SYSTEM SET search_path TO "$user", public, vectors;
+        CREATE EXTENSION IF NOT EXISTS cube;
+        CREATE EXTENSION IF NOT EXISTS earthdistance;
+        CREATE EXTENSION IF NOT EXISTS vectors;
+        ALTER DATABASE :dbname OWNER TO :dbuser;
+        GRANT ALL ON SCHEMA vectors TO :dbuser;
+      # need to restart to finish loading pgvecto.rs
+      01-restart.sh: |
+        #!/bin/sh
+        pg_ctl restart
+      # after restart, the index_stat table is created, so need to modify that now too
+      02-grant-index.sql: |
+        \getenv dbname POSTGRES_DATABASE
+        \getenv dbuser POSTGRES_USER
+        \c :dbname
+        GRANT SELECT ON TABLE pg_vector_index_stat to :dbuser;
 ```
